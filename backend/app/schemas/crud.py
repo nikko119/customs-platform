@@ -231,6 +231,8 @@ class CrawlTaskUpdate(BaseModel):
 
 class CrawlTaskRead(CrawlTaskCreate, ORMModel):
     id: int
+    # 浏览器启动前失败时，实际访问页数为 0；创建任务时的页数限制仍从 1 开始。
+    max_pages: int | None = Field(default=None, ge=0)
     discovered_count: int
     filtered_count: int
     body_filtered_count: int

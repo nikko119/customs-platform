@@ -1,11 +1,11 @@
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import get_db
 from app.main import app
-from app.models import Base
+from app.models import Base, CrawlTask
 
 
 def make_client():
@@ -99,6 +99,29 @@ def test_cleaner_normalizes_whitespace_and_adjacent_duplicate_paragraphs():
 
     result = clean_article_text("  First&nbsp; paragraph.  \n\nFirst paragraph.\n\nSecond\t paragraph.  ")
     assert result == "First paragraph.\n\nSecond paragraph."
+
+
+def test_failed_crawl_before_first_page_does_not_break_task_list():
+    client, engine = make_client()
+    try:
+        country = client.post("/api/v1/countries", json={"code": "US", "name": "United States"}).json()
+        site = client.post("/api/v1/source-sites", json={
+            "country_id": country["id"], "site_code": "CBP", "name": "CBP",
+            "base_url": "https://www.cbp.gov", "list_url": "https://www.cbp.gov/newsroom/media-releases/all",
+        }).json()
+        task = client.post("/api/v1/crawl-tasks", json={"source_site_id": site["id"]}).json()
+        with engine.begin() as connection:
+            connection.execute(update(CrawlTask).where(CrawlTask.id == task["id"]).values(
+                status="FAILED", max_pages=0, failed_count=1, error_message="浏览器启动失败",
+            ))
+
+        response = client.get("/api/v1/crawl-tasks")
+        assert response.status_code == 200, response.text
+        assert response.json()[0]["max_pages"] == 0
+        assert response.json()[0]["status"] == "FAILED"
+        assert client.get(f"/api/v1/crawl-tasks/{task['id']}").status_code == 200
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_cleaner_removes_social_media_promotion_but_keeps_news_paragraphs():
