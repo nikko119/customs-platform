@@ -1,4 +1,4 @@
-"""CBP Playwright 抓取入口：首次近月补抓，后续只抓第一页。"""
+"""CBP Playwright 抓取入口：自动抓取最近一段时间的新闻。"""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_p
 from app.core.database import SessionLocal
 from app.services.article_persistence import ensure_cbp_source
 from .cbp import DEFAULT_KEYWORDS, DEFAULT_URL, Article, matches_keywords, parse_article_html, parse_listing_html
-from .runner import resolve_crawl_plan, run_managed_site_crawl
+from .runner import run_managed_site_crawl
 from .site import SiteAdapter
 
 LOGGER = logging.getLogger("cbp")
@@ -26,19 +26,6 @@ def configure_logging(level: str = "INFO", log_file: str | Path | None = None) -
         handlers.append(logging.FileHandler(path, encoding="utf-8"))
     logging.basicConfig(level=getattr(logging, level.upper(), logging.INFO), handlers=handlers,
                         format="%(asctime)s %(levelname)s %(name)s - %(message)s", force=True)
-
-
-def find_chromium_executable() -> str | None:
-    """优先复用项目目录中已安装的 Chromium。"""
-    configured = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
-    if configured and Path(configured).is_file():
-        return configured
-    browser_root = os.getenv("PLAYWRIGHT_BROWSERS_PATH")
-    if browser_root:
-        candidates = sorted(Path(browser_root).glob("chromium-*/chrome-win64/chrome.exe"), reverse=True)
-        if candidates:
-            return str(candidates[0])
-    return None
 
 
 def _page_url(url: str, base_url: str) -> str:
@@ -97,7 +84,7 @@ async def crawl_cbp(*, output_dir: str | Path = "data", max_articles: int | None
                     max_pages: int | None = None, keywords: tuple[str, ...] = DEFAULT_KEYWORDS,
                     interval: float = 1.5, include_content: bool = False,
                     headless: bool = True, slow_mo: float = 0,
-                    initial_days: int = 30) -> dict:
+                    recent_days: int = 30) -> dict:
     """创建任务记录后抓取；新闻和图片写数据库，同时保留文件备份。"""
     adapter = SiteAdapter(
         country="US", site="CBP", list_url=DEFAULT_URL, keywords=keywords,
@@ -113,7 +100,7 @@ async def crawl_cbp(*, output_dir: str | Path = "data", max_articles: int | None
     return await run_managed_site_crawl(
         adapter, source_site_id, output_dir=output_dir, max_articles=max_articles,
         max_pages=max_pages, interval=interval, include_content=include_content,
-        headless=headless, slow_mo=slow_mo, initial_days=initial_days,
+        headless=headless, slow_mo=slow_mo, recent_days=recent_days,
     )
 
 
@@ -122,9 +109,10 @@ async def main() -> None:
     parser.add_argument("--max-articles", type=int, default=None,
                         help="最多处理文章数；不填写时自动模式不限制数量")
     parser.add_argument("--max-pages", type=int, default=None,
-                        help="手动限制页数；不填写时首次抓近月、后续抓第一页")
-    parser.add_argument("--initial-days", type=int, default=int(os.getenv("CBP_INITIAL_DAYS", "30")),
-                        help="首次自动抓取的最近天数，默认 30")
+                        help="手动限制页数；不填写时每次按最近天数自动翻页")
+    parser.add_argument("--recent-days", "--initial-days", dest="recent_days", type=int,
+                        default=int(os.getenv("CBP_RECENT_DAYS", os.getenv("CBP_INITIAL_DAYS", "30"))),
+                        help="每次自动抓取的最近天数，默认 30；旧参数 --initial-days 仍可用")
     parser.add_argument("--interval", type=float, default=float(os.getenv("CBP_INTERVAL", "1.5")))
     parser.add_argument("--output-dir", default=os.getenv("CBP_OUTPUT_DIR", "data"))
     parser.add_argument("--keywords", default=os.getenv("CBP_KEYWORDS", ",".join(DEFAULT_KEYWORDS)))
@@ -139,7 +127,7 @@ async def main() -> None:
         output_dir=args.output_dir, max_articles=args.max_articles, max_pages=args.max_pages,
         keywords=tuple(args.keywords.split(",")), interval=args.interval,
         include_content=args.include_content, headless=not args.headed,
-        slow_mo=args.slow_mo, initial_days=args.initial_days,
+        slow_mo=args.slow_mo, recent_days=args.recent_days,
     )
     print(summary)
 

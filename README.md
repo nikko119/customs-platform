@@ -36,11 +36,15 @@ alembic upgrade head
 
 ## 抓取与查看
 
-以下命令都在 `backend` 目录运行。首次自动抓取最近 30 天，成功完成后默认只抓 CBP 新闻列表第一页：
+以下命令都在 `backend` 目录运行。默认每次从第一页开始翻页，抓取最近 30 天内标题及正文均命中关键词的新闻；历史文章会按 URL 和内容 Hash 去重：
 
 ```powershell
 python -m crawlers.cbp_fetch --output-dir data
 ```
+
+默认不限制文章篇数。近 30 天可用 `CBP_RECENT_DAYS` 或 `--recent-days 30` 调整；`--max-articles 30` 则最多处理 30 篇**筛选后的**新闻，并不代表官网最新 30 条。显式设置 `--max-pages` 会改为手动页数模式，不再按日期截取。以前的 `--initial-days` 和 `CBP_INITIAL_DAYS` 暂时仍可用，但建议改用新名称。
+
+如果 Playwright 提示找不到 Chromium，运行 `python -m playwright install chromium`。程序也会自动查找 `backend/data/browsers` 中已安装的 Chromium；浏览器可通过环境变量 `PLAYWRIGHT_BROWSERS_PATH` 或 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定。
 
 想看到 Playwright 浏览器过程，可先小范围测试：
 

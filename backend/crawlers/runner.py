@@ -5,8 +5,6 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
-
 from app.core.database import SessionLocal
 from app.models import CrawlTask
 from app.services.article_persistence import get_source_site, upsert_crawled_article
@@ -16,41 +14,29 @@ from crawlers.site import CrawlCallbacks, CrawlOptions, SiteAdapter
 LOGGER = logging.getLogger(__name__)
 
 
-def resolve_crawl_plan(*, has_successful_task: bool, requested_max_pages: int | None,
-                       initial_days: int = 30, now: datetime | None = None) -> tuple[int | None, datetime | None, str]:
-    """首次抓最近 N 天；成功完成后只查首页；显式页数按手动任务处理。"""
+def resolve_crawl_plan(*, requested_max_pages: int | None,
+                       recent_days: int = 30, now: datetime | None = None) -> tuple[int | None, datetime | None, str]:
+    """自动任务每次抓最近 N 天；显式页数仍按手动任务处理。"""
     if requested_max_pages is not None:
         return requested_max_pages, None, "MANUAL"
-    if has_successful_task:
-        return 1, None, "INCREMENTAL_FIRST_PAGE"
-    return None, (now or datetime.now()) - timedelta(days=max(1, initial_days)), "INITIAL_WINDOW"
+    # 列表只有发布日期，窗口起点按当天零点比较，避免漏掉边界日新闻。
+    cutoff = (now or datetime.now()) - timedelta(days=max(1, recent_days))
+    return None, cutoff.replace(hour=0, minute=0, second=0, microsecond=0), "RECENT_WINDOW"
 
 
 async def run_managed_site_crawl(
     adapter: SiteAdapter, source_site_id: int, *, output_dir: str | Path,
     max_articles: int | None = None, max_pages: int | None = None,
     interval: float = 1.5, include_content: bool = False,
-    headless: bool = True, slow_mo: float = 0, initial_days: int = 30,
+    headless: bool = True, slow_mo: float = 0, recent_days: int = 30,
 ) -> dict:
     """新站点传入适配器及其数据库 ID，复用任务记录与 URL/Hash 入库。"""
     with SessionLocal() as db:
         site = get_source_site(db, source_site_id)
         if site.site_code != adapter.site or site.country.code != adapter.country:
             raise ValueError(f"站点 {source_site_id} 与适配器 {adapter.country}/{adapter.site} 不匹配")
-        has_success = db.scalar(
-            select(CrawlTask.id).where(
-                CrawlTask.source_site_id == site.id,
-                CrawlTask.status == "SUCCESS",
-                (
-                    (CrawlTask.crawl_mode == "INCREMENTAL_FIRST_PAGE")
-                    | ((CrawlTask.crawl_mode == "INITIAL_WINDOW")
-                       & (CrawlTask.success_count > 0)
-                       & CrawlTask.max_articles.is_(None))
-                ),
-            ).limit(1)
-        ) is not None
         effective_pages, published_after, mode = resolve_crawl_plan(
-            has_successful_task=has_success, requested_max_pages=max_pages, initial_days=initial_days,
+            requested_max_pages=max_pages, recent_days=recent_days,
         )
         task = CrawlTask(source_site_id=site.id, status="RUNNING", max_pages=effective_pages,
                          max_articles=max_articles, crawl_mode=mode, started_at=datetime.now())

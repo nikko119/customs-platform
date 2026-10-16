@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -62,3 +63,44 @@ def test_new_site_reuses_task_and_article_persistence(monkeypatch, tmp_path: Pat
         assert "不匹配" in str(exc)
     else:
         raise AssertionError("站点与适配器不一致时应拒绝运行")
+
+
+def test_previous_success_still_uses_recent_window(monkeypatch, tmp_path: Path):
+    import crawlers.runner as runner
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    monkeypatch.setattr(runner, "SessionLocal", sessions)
+    with sessions() as db:
+        country = Country(code="US", name="United States")
+        db.add(country); db.flush()
+        site = SourceSite(country_id=country.id, site_code="CBP", name="CBP",
+                          base_url="https://cbp.test", list_url="https://cbp.test/news")
+        db.add(site); db.flush()
+        db.add(CrawlTask(source_site_id=site.id, status="SUCCESS", crawl_mode="INCREMENTAL_FIRST_PAGE"))
+        db.commit()
+        site_id = site.id
+
+    adapter = SiteAdapter(
+        country="US", site="CBP", list_url="https://cbp.test/news", keywords=("cargo",),
+        parse_listing=lambda html, url: [], parse_article=lambda html, url: None,
+        normalize_url=lambda url, base: url, page_url=lambda page: "https://cbp.test/news",
+        matches_body=lambda text, keywords: True,
+    )
+
+    async def fake_crawl(site_adapter, options, callbacks):
+        assert options.max_pages is None
+        assert options.max_articles is None
+        assert options.crawl_mode == "RECENT_WINDOW"
+        assert datetime.now() - timedelta(days=31) < options.published_after <= datetime.now() - timedelta(days=29)
+        return {"discovered": 0, "selected": 0, "filtered": 0, "date_filtered": 0,
+                "pages_visited": 1, "crawl_mode": options.crawl_mode, "body_filtered": 0,
+                "success": 0, "new": 0, "updated": 0, "unchanged": 0, "errors": []}
+
+    monkeypatch.setattr(runner, "run_site_crawl", fake_crawl)
+    summary = asyncio.run(run_managed_site_crawl(adapter, site_id, output_dir=tmp_path))
+    with sessions() as db:
+        task = db.get(CrawlTask, summary["task_id"])
+        assert task.status == "SUCCESS"
+        assert task.crawl_mode == "RECENT_WINDOW"

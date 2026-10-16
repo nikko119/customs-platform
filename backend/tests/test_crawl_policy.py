@@ -1,8 +1,8 @@
 from datetime import datetime
 
 from crawlers.cbp import parse_listing_html, parse_published_datetime
-from crawlers.cbp_fetch import resolve_crawl_plan
 from crawlers.engine import filter_listing_date
+from crawlers.runner import resolve_crawl_plan
 
 
 def test_listing_date_window_keeps_recent_and_unknown_dates():
@@ -58,21 +58,21 @@ def test_cbp_listing_prefers_visible_date_over_stale_datetime_attribute():
     assert item["published_at"] == "2026-10-14"
 
 
-def test_crawl_plan_uses_month_window_only_on_first_successful_run():
-    now = datetime(2026, 10, 15)
+def test_crawl_plan_uses_rolling_month_window_by_default():
+    now = datetime(2026, 10, 15, 14, 30)
     pages, cutoff, mode = resolve_crawl_plan(
-        has_successful_task=False, requested_max_pages=None, initial_days=30, now=now
+        requested_max_pages=None, recent_days=30, now=now
     )
     assert pages is None
     assert cutoff == datetime(2026, 9, 15)
-    assert mode == "INITIAL_WINDOW"
+    assert mode == "RECENT_WINDOW"
 
     pages, cutoff, mode = resolve_crawl_plan(
-        has_successful_task=True, requested_max_pages=None, initial_days=30, now=now
+        requested_max_pages=None, recent_days=7, now=now
     )
-    assert (pages, cutoff, mode) == (1, None, "INCREMENTAL_FIRST_PAGE")
+    assert (pages, cutoff, mode) == (None, datetime(2026, 10, 8), "RECENT_WINDOW")
 
     pages, cutoff, mode = resolve_crawl_plan(
-        has_successful_task=False, requested_max_pages=2, initial_days=30, now=now
+        requested_max_pages=2, recent_days=30, now=now
     )
     assert (pages, cutoff, mode) == (2, None, "MANUAL")

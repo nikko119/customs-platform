@@ -47,4 +47,4 @@ alembic upgrade head
 alembic upgrade head
 ```
 
-最新任务表还记录 `crawl_mode`（首次近月、后续第一页或手动限制）和 `date_filtered_count`（窗口外旧记录数）。
+任务表还记录 `crawl_mode`（当前自动近月范围、旧版首次/第一页模式或手动限制）和 `date_filtered_count`（窗口外旧记录数）。

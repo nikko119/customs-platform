@@ -1,6 +1,6 @@
 # 多国家、多站点抓取结构
 
-当前实际入口是 `backend/crawlers/runner.py` 中的 `run_managed_site_crawl(adapter, source_site_id, ...)`：它按站点 ID 创建抓取任务、决定首次/增量范围、保存新闻和图片、回写任务统计。`cbp_fetch.py` 只组装 CBP 的 `SiteAdapter` 并调用这个入口；新站点也应调用同一个入口。网页结构与分页规则仍需基于新站点的真实 HTML 单独编写和测试。
+当前实际入口是 `backend/crawlers/runner.py` 中的 `run_managed_site_crawl(adapter, source_site_id, ...)`：它按站点 ID 创建抓取任务、决定抓取范围、保存新闻和图片、回写任务统计。`cbp_fetch.py` 只组装 CBP 的 `SiteAdapter` 并调用这个入口；新站点也应调用同一个入口。网页结构与分页规则仍需基于新站点的真实 HTML 单独编写和测试。
 
 当前抓取流程分成两层：
 
@@ -10,7 +10,7 @@
 
 ## 抓取范围策略
 
-`cbp_fetch` 会按 `source_site` 的成功任务选择范围：站点第一次使用自动规则时使用 `INITIAL_WINDOW`，从第一页开始翻页，保留列表发布日期在最近 `CBP_INITIAL_DAYS`（默认 30 天）内的记录；遇到整页日期都早于窗口时停止。已有完整成功的自动任务后使用 `INCREMENTAL_FIRST_PAGE`，只访问第一页。首次任务失败、没有成功文章或使用了 `--max-articles` 限量测试，都不会让站点进入增量模式；升级前的旧任务也不会阻止首次近月补抓。显式传入 `--max-pages` 会使用 `MANUAL` 页数模式。
+`cbp_fetch` 默认每次使用 `RECENT_WINDOW`：从第一页开始翻页，保留列表发布日期在最近 `CBP_RECENT_DAYS`（默认 30 天）内的记录；遇到整页日期都早于窗口时停止。过去是否抓取成功，不再缩小到第一页。`--recent-days` 可临时指定天数，`--max-articles 30` 则只处理最多 30 篇经过关键词筛选的文章。显式传入 `--max-pages` 会使用 `MANUAL` 页数模式，不按日期过滤。旧 `--initial-days` / `CBP_INITIAL_DAYS` 保留兼容，建议使用新名称。旧任务记录保留原有模式，不影响新任务。
 
 以后新增英国或加拿大站点时，建议按以下步骤处理：
 

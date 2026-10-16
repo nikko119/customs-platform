@@ -62,11 +62,14 @@ def _chromium_executable() -> str | None:
     configured = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
     if configured and Path(configured).is_file():
         return configured
-    browser_root = os.getenv("PLAYWRIGHT_BROWSERS_PATH")
-    if browser_root:
-        candidates = sorted(Path(browser_root).glob("chromium-*/chrome-win64/chrome.exe"), reverse=True)
-        if candidates:
-            return str(candidates[0])
+    browser_roots = [Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", ""))] if os.getenv("PLAYWRIGHT_BROWSERS_PATH") else []
+    browser_roots.append(Path(__file__).resolve().parents[1] / "data" / "browsers")
+    for root in browser_roots:
+        for pattern in ("chromium-*/chrome-win64/chrome.exe", "chromium-*/chrome-linux/chrome",
+                        "chromium-*/chrome-mac/Chromium.app/Contents/MacOS/Chromium"):
+            candidates = sorted(root.glob(pattern), reverse=True)
+            if candidates:
+                return str(candidates[0])
     return None
 
 
