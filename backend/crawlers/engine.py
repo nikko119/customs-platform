@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlparse
 
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
+from playwright.async_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError, async_playwright
 
 from crawlers.site import CrawlCallbacks, CrawlOptions, SiteAdapter
 
@@ -62,6 +62,8 @@ def _chromium_executable() -> str | None:
     configured = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE")
     if configured and Path(configured).is_file():
         return configured
+    if configured:
+        LOGGER.warning("指定的 Chromium 文件不存在，尝试其他浏览器: %s", configured)
     browser_roots = [Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", ""))] if os.getenv("PLAYWRIGHT_BROWSERS_PATH") else []
     browser_roots.append(Path(__file__).resolve().parents[1] / "data" / "browsers")
     for root in browser_roots:
@@ -71,6 +73,38 @@ def _chromium_executable() -> str | None:
             if candidates:
                 return str(candidates[0])
     return None
+
+
+def _browser_candidates() -> list[tuple[str, dict[str, str]]]:
+    """按配置排列浏览器候选项；Chrome 是 Chromium 启动失败时的备用项。"""
+    preference = os.getenv("CRAWLER_BROWSER", "auto").strip().lower()
+    if preference not in ("auto", "chrome"):
+        raise ValueError("CRAWLER_BROWSER 只能设置为 auto 或 chrome")
+
+    chrome = ("Google Chrome", {"channel": "chrome"})
+    candidates = [chrome] if preference == "chrome" else []
+    executable = _chromium_executable()
+    if executable:
+        candidates.append((f"项目 Chromium ({executable})", {"executable_path": executable}))
+    candidates.append(("Playwright Chromium", {}))
+    if preference == "auto":
+        candidates.append(chrome)
+    return candidates
+
+
+async def _launch_browser(playwright, *, headless: bool, slow_mo: float):
+    """只在浏览器启动失败时切换候选项，页面访问失败仍按原任务错误处理。"""
+    failures: list[str] = []
+    for label, candidate in _browser_candidates():
+        try:
+            browser = await playwright.chromium.launch(headless=headless, slow_mo=slow_mo, **candidate)
+            LOGGER.info("已启动浏览器: %s", label)
+            return browser
+        except PlaywrightError as exc:
+            reason = str(exc).splitlines()[0]
+            failures.append(f"{label}: {reason}")
+            LOGGER.warning("浏览器启动失败，尝试下一个: %s: %s", label, reason)
+    raise RuntimeError("所有浏览器均启动失败；请检查 Chromium/Chrome 安装：" + "; ".join(failures))
 
 
 def filter_titles(items: list[dict], keywords: Iterable[str], limit: int | None,
@@ -172,11 +206,7 @@ async def run_site_crawl(adapter: SiteAdapter, options: CrawlOptions,
                 options.max_articles)
 
     async with async_playwright() as playwright:
-        launch_options = {"headless": options.headless, "slow_mo": options.slow_mo}
-        executable = _chromium_executable()
-        if executable:
-            launch_options["executable_path"] = executable
-        browser = await playwright.chromium.launch(**launch_options)
+        browser = await _launch_browser(playwright, headless=options.headless, slow_mo=options.slow_mo)
         context = await browser.new_context()
         page = await context.new_page()
         page_no = 0

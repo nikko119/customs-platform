@@ -44,7 +44,7 @@ python -m crawlers.cbp_fetch --output-dir data
 
 默认不限制文章篇数。近 30 天可用 `CBP_RECENT_DAYS` 或 `--recent-days 30` 调整；`--max-articles 30` 则最多处理 30 篇**筛选后的**新闻，并不代表官网最新 30 条。显式设置 `--max-pages` 会改为手动页数模式，不再按日期截取。以前的 `--initial-days` 和 `CBP_INITIAL_DAYS` 暂时仍可用，但建议改用新名称。
 
-如果 Playwright 提示找不到 Chromium，运行 `python -m playwright install chromium`。程序也会自动查找 `backend/data/browsers` 中已安装的 Chromium；浏览器可通过环境变量 `PLAYWRIGHT_BROWSERS_PATH` 或 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定。
+浏览器默认使用 `CRAWLER_BROWSER=auto`：依次尝试项目目录 `backend/data/browsers` 中的 Chromium、Playwright 默认 Chromium 和系统已安装的 Google Chrome。浏览器启动失败会记录原因并自动尝试下一项；全部失败时任务会标记为失败，命令行也会返回非零退出码。如果想优先使用 Google Chrome，在 `backend/.env` 中设置 `CRAWLER_BROWSER=chrome`。没有任何可用浏览器时运行 `python -m playwright install chromium`；也可用 `PLAYWRIGHT_BROWSERS_PATH` 或 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定浏览器。`requirements.txt` 固定了已验证的 Playwright 版本，重新安装依赖后应按安装步骤重新安装配套 Chromium。Chrome 回退只处理浏览器启动问题，CBP 返回 403 或网页结构变化仍会如实记为抓取失败。
 
 想看到 Playwright 浏览器过程，可先小范围测试：
 

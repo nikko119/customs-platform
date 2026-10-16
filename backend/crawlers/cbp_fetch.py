@@ -130,6 +130,8 @@ async def main() -> None:
         slow_mo=args.slow_mo, recent_days=args.recent_days,
     )
     print(summary)
+    if summary["errors"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
