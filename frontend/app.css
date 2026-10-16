@@ -13,3 +13,4 @@
 
 /* 新闻已经有上一页/下一页，列表按当前页自然展开，不再设置第二个滚动区域。 */
 .news-list{max-height:none;overflow:visible}
+.api-key-dialog{max-width:480px}.api-key-form label{display:grid;gap:6px;font-size:12px;font-weight:600;color:#52667e}.api-key-form input{width:100%;border:1px solid #ccd6e3;border-radius:5px;padding:9px 10px;margin-top:4px}.api-key-form .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}

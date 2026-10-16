@@ -129,6 +129,14 @@
     <pre id="error-body"></pre>
     <div class="dialog-actions"><button type="button" data-close-dialog>关闭</button></div>
   </dialog>
+  <dialog id="api-key-dialog" class="detail-dialog api-key-dialog">
+    <div class="dialog-head"><h2>输入管理 API Key</h2><button type="button" id="cancel-api-key" aria-label="关闭">×</button></div>
+    <p class="muted">跨电脑查看管理页面需要 ADMIN_API_KEY。密钥只保存在当前浏览器会话中，不会写入项目文件。</p>
+    <form id="api-key-form" class="api-key-form">
+      <label>管理 API Key<input id="api-key-input" type="password" autocomplete="off" required></label>
+      <div class="dialog-actions"><button type="button" id="clear-api-key">清除已保存密钥</button><button type="submit" class="primary">验证并进入</button></div>
+    </form>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/assets/app.js" defer></script>
 </body>

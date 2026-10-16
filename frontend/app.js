@@ -14,6 +14,8 @@ const dateText = (value) => value ? new Date(value).toLocaleString("zh-CN", { ho
 const shortDate = (value) => value ? String(value).slice(0, 10) : "日期未提供";
 const statusLabel = { SUCCESS: "成功", FAILED: "失败", RUNNING: "运行中", PENDING: "待处理", ACTIVE: "启用", INACTIVE: "停用", MOCK: "模拟" };
 const statusBadge = (status) => `<span class="badge ${String(status).toLowerCase()}">${escapeHtml(statusLabel[status] || status || "未知")}</span>`;
+const API_KEY_STORAGE = "customs_platform_admin_api_key";
+let apiKeyPrompt = null;
 
 function toast(message, error = false) {
   const node = $("#toast");
@@ -24,14 +26,47 @@ function toast(message, error = false) {
   toast.timer = setTimeout(() => node.classList.remove("visible"), 4500);
 }
 
+function promptForApiKey() {
+  if (apiKeyPrompt) return apiKeyPrompt;
+  const dialog = $("#api-key-dialog");
+  const input = $("#api-key-input");
+  apiKeyPrompt = new Promise((resolve) => {
+    let submittedValue = null;
+    const finish = () => { apiKeyPrompt = null; resolve(submittedValue); };
+    dialog.addEventListener("close", finish, { once: true });
+    input.value = "";
+    dialog.showModal();
+    input.focus();
+    $("#api-key-form").onsubmit = (event) => {
+      event.preventDefault();
+      const value = input.value.trim();
+      if (!value) return;
+      sessionStorage.setItem(API_KEY_STORAGE, value);
+      submittedValue = value;
+      dialog.close();
+    };
+    $("#cancel-api-key").onclick = () => dialog.close();
+    $("#clear-api-key").onclick = () => { sessionStorage.removeItem(API_KEY_STORAGE); input.value = ""; input.focus(); };
+  });
+  return apiKeyPrompt;
+}
+
 async function request(url, options = {}) {
+  const { skipAuthPrompt = false, ...fetchOptions } = options;
+  const headers = { "Content-Type": "application/json", ...(fetchOptions.headers || {}) };
+  const apiKey = sessionStorage.getItem(API_KEY_STORAGE);
+  if (apiKey) headers["X-API-Key"] = apiKey;
   let response;
   try {
-    response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+    response = await fetch(url, { ...fetchOptions, headers });
   } catch (error) {
     $("#connection-state").innerHTML = "<i></i>连接失败";
     $("#connection-state").classList.add("offline");
     throw new Error(`无法连接后端：${error.message}`);
+  }
+  if (response.status === 401 && !skipAuthPrompt) {
+    const enteredKey = await promptForApiKey();
+    if (enteredKey) return request(url, { ...fetchOptions, skipAuthPrompt: true });
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -265,6 +300,7 @@ function setup() {
   $(`#${page}-page`).hidden = false;
   document.querySelectorAll(".nav a").forEach((link) => { if (link.dataset.page === page) { link.classList.add("active"); link.setAttribute("aria-current", "page"); } });
   $("#refresh-page").addEventListener("click", () => location.reload());
+  $("#api-key-dialog").addEventListener("cancel", (event) => { event.preventDefault(); $("#api-key-dialog").close(); });
   document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => $("#error-dialog").close()));
   $("#error-dialog").addEventListener("click", (event) => { if (event.target === event.currentTarget) event.currentTarget.close(); });
   if (page === "dashboard") loadDashboard();
