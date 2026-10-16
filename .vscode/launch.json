@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CBP 抓取（显示浏览器）",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "crawlers.cbp_fetch",
+      "cwd": "${workspaceFolder}/backend",
+      "args": [
+        "--headed",
+        "--slow-mo", "300",
+        "--max-pages", "1",
+        "--max-articles", "1",
+        "--output-dir", "data/visible-test"
+      ],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "${workspaceFolder}/backend/data/browsers"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "新闻查看页面（FastAPI）",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "cwd": "${workspaceFolder}/backend",
+      "args": [
+        "app.main:app",
+        "--host", "127.0.0.1",
+        "--port", "8000",
+        "--reload"
+      ],
+      "env": {
+        "CBP_OUTPUT_DIR": "data/visible-test"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

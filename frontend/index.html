@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#152231">
+  <title>集运新闻管理台</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="回到总览">
+        <strong>CBP 新闻台</strong>
+        <small>官方资讯采集与处理</small>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a href="/" data-page="dashboard" data-icon="home">总览</a>
+        <a href="/news" data-page="news" data-icon="news">新闻管理</a>
+        <a href="/tasks" data-page="tasks" data-icon="tasks">抓取任务</a>
+        <a href="/prompts" data-page="prompts" data-icon="prompts">提示词模板</a>
+      </nav>
+      <div class="sidebar-note">数据保存在本地数据库<br>CBP · United States</div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="top-title">总览</h1>
+          <p id="top-subtitle">查看采集与内容处理进度</p>
+        </div>
+        <div class="topbar-actions">
+          <span id="connection-state" class="status-dot"><i></i>正在连接</span>
+          <button id="refresh-page" type="button" title="重新加载本页">刷新</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <section id="dashboard-page" class="page" hidden>
+          <div class="page-head">
+            <div><h2>工作台</h2><p>快速了解新闻采集和 AI 处理的总体情况。</p></div>
+            <a class="button primary" href="/news">查看新闻</a>
+          </div>
+          <div class="grid grid-4" id="dashboard-stats"></div>
+          <div class="grid grid-2 dashboard-panels">
+            <section class="surface">
+              <div class="section-head"><div><h3>最近抓取任务</h3><p>查看最近运行结果和异常信息</p></div><a href="/tasks" class="link">全部任务 →</a></div>
+              <div id="dashboard-recent-tasks"></div>
+            </section>
+            <section class="surface quick-links">
+              <h3>常用入口</h3>
+              <a href="/news"><span class="quick-icon">文</span><span><b>新闻管理</b><small>浏览原文、清洗、翻译和改写结果</small></span><span>→</span></a>
+              <a href="/tasks"><span class="quick-icon">任</span><span><b>抓取任务</b><small>查看每次抓取的新增、更新和失败数</small></span><span>→</span></a>
+              <a href="/prompts"><span class="quick-icon">提</span><span><b>提示词模板</b><small>管理翻译与新闻改写模板版本</small></span><span>→</span></a>
+            </section>
+          </div>
+        </section>
+
+        <section id="news-page" class="page" hidden>
+          <div class="page-head">
+            <div><h2>新闻管理</h2><p>从数据库查看已采集新闻和每一步内容处理结果。</p></div>
+          </div>
+          <section class="surface news-toolbar">
+            <form id="news-search" class="toolbar">
+              <input id="search-query" type="search" placeholder="搜索新闻标题" aria-label="搜索新闻标题">
+              <select id="source-filter" aria-label="按信息源筛选"><option value="">全部信息源</option></select>
+              <button type="submit" class="primary">搜索</button>
+              <button type="button" id="clear-search">清除</button>
+              <span id="news-count" class="muted"></span>
+            </form>
+          </section>
+          <div class="news-layout page-gap">
+            <section class="surface news-list-panel">
+              <div class="section-head"><div><h3>新闻列表</h3><p>点击新闻查看详情</p></div></div>
+              <div id="news-list" class="news-list"><div class="empty">正在读取新闻…</div></div>
+              <div class="pagination">
+                <button id="news-prev" type="button">上一页</button>
+                <span id="news-page-number" class="muted"></span>
+                <button id="news-next" type="button">下一页</button>
+              </div>
+            </section>
+            <section id="article-detail" class="surface detail"><div class="empty">请选择一篇新闻。</div></section>
+          </div>
+        </section>
+
+        <section id="tasks-page" class="page" hidden>
+          <div class="page-head">
+            <div><h2>抓取任务</h2><p>每次抓取的运行状态、处理数量和失败原因都在这里。</p></div>
+            <button id="refresh-tasks" type="button">刷新任务</button>
+          </div>
+          <div class="grid grid-4" id="task-stats"></div>
+          <section class="surface page-gap">
+            <div class="section-head"><div><h3>运行记录</h3><p>错误详情单独打开，不会撑高整张表格。</p></div><span id="task-updated" class="muted"></span></div>
+            <div class="table-wrap"><table class="compact-table task-table">
+              <thead><tr><th>任务</th><th>状态</th><th>模式</th><th>发现 / 筛选</th><th>新增 / 更新</th><th>未变 / 失败</th><th>开始时间</th><th>错误</th></tr></thead>
+              <tbody id="task-rows"><tr><td colspan="8" class="empty">正在读取任务…</td></tr></tbody>
+            </table></div>
+          </section>
+        </section>
+
+        <section id="prompts-page" class="page" hidden>
+          <div class="page-head">
+            <div><h2>提示词模板</h2><p>每次保存会生成新版本，旧版本保留，方便回看和复用。</p></div>
+            <button id="new-prompt" type="button" class="primary">新建模板</button>
+          </div>
+          <div class="prompt-layout">
+            <section class="surface prompt-form-card" id="prompt-form-card" hidden>
+              <div class="section-head"><div><h3 id="prompt-form-title">新建提示词</h3><p>保存后会生成一个新版本。</p></div><button id="close-prompt-form" type="button" class="icon-button" aria-label="关闭">×</button></div>
+              <form id="prompt-form" class="form-grid">
+                <label>模板名称<input name="name" required maxlength="191" placeholder="例如：新闻中文翻译"></label>
+                <label>用途<select name="purpose"><option value="TRANSLATE">翻译</option><option value="REWRITE">改写</option></select></label>
+                <label class="wide">系统提示词<textarea name="system_prompt" required rows="5"></textarea></label>
+                <label class="wide">用户提示词<textarea name="user_prompt" required rows="7"></textarea></label>
+                <div class="form-actions"><button type="button" id="cancel-prompt">取消</button><button type="submit" class="primary">保存为新版本</button></div>
+              </form>
+            </section>
+            <section class="surface">
+              <div class="section-head"><div><h3>已保存模板</h3><p>按名称和版本查看，正文可展开阅读。</p></div><span id="prompt-count" class="muted"></span></div>
+              <div id="prompt-list" class="prompt-list"><div class="empty">正在读取模板…</div></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="error-dialog" class="detail-dialog">
+    <div class="dialog-head"><h2 id="error-title">错误详情</h2><button type="button" data-close-dialog aria-label="关闭">×</button></div>
+    <pre id="error-body"></pre>
+    <div class="dialog-actions"><button type="button" data-close-dialog>关闭</button></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# 本机密钥与环境
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python / 测试
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.mypy_cache/
+.ruff_cache/
+
+# 抓取产物、浏览器和数据库（任意层级）
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# 前端依赖与构建产物
+node_modules/
+dist/
